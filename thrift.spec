@@ -6,6 +6,7 @@
 %global pkg_rel 17
 
 %global py_version 2.7
+%global python_configure --with-python
 
 %global php_extdir  %(php-config --extension-dir 2>/dev/null || echo "undefined")
 
@@ -29,7 +30,7 @@
 # unless and until Thrift is patched to use a different HTTP server.
 %if 0%{?have_mongrel} == 0
 %global ruby_configure --without-ruby
-%global with_ruby 0
+%global want_ruby 0
 %else
 %global ruby_configure --with-ruby
 %global want_ruby 1
@@ -61,9 +62,26 @@
 %global want_golang 0
 %global golang_configure --without-go
 
-Name:           %{?scl_prefix}thrift
+# for scl version of the package we need only java
+%{?scl:
+%global want_ruby 0
+%global ruby_configure --without-ruby
+%global want_erlang 0
+%global erlang_configure --without-erlang
+%global want_php 0
+%global php_configure --without-php
+%global want_golang 0
+%global golang_configure --without-go
+%global want_d 0
+%global skip_qt 1
+%global skip_python 1
+%global python_configure --without-python
+%global skip_perl 1
+}
+
+Name:		%{?scl_prefix}thrift
 Version:	%{pkg_version}
-Release:	%{pkg_rel}%{?dist}.6
+Release:	%{pkg_rel}%{?dist}.7
 Summary:	Software framework for cross-language services development
 
 # Parts of the source are used under the BSD and zlib licenses, but
@@ -92,15 +110,14 @@ Source3:        https://gitorious.org/pkg-scribe/%{pkg_name}-deb-pkg/raw/master:
 Source4:	http://repo1.maven.org/maven2/org/apache/%{pkg_name}/libfb303/%{version}/libfb303-%{version}.pom
 
 # this patch is adapted from Gil Cattaneo's thrift-0.7.0 package
+# patch changed so it could be used in SCL package
 Patch0:		%{pkg_name}-%{version}-buildxml.patch
 # don't use bundled rebar executable
 Patch1:		%{pkg_name}-%{version}-rebar.patch
-# for fb303, excise maven ant tasks; build against system libraries; etc.
-Patch2:		fb303-%{version}-buildxml.patch
 # required to get it build on aarch64
-Patch3:         %{pkg_name}-%{version}-THRIFT-2214-System-header-sys-param.h-is-included-in.patch
+Patch2:         %{pkg_name}-%{version}-THRIFT-2214-System-header-sys-param.h-is-included-in.patch
 # Adapt to GCC 6, bug #1306671, in 0.9.3
-Patch4:     	%{pkg_name}-%{version}-Adapt-to-GCC-6.patch
+Patch3:     	%{pkg_name}-%{version}-Adapt-to-GCC-6.patch
 
 Group:		Development/Libraries
 
@@ -154,12 +171,14 @@ Requires:	boost-devel
 The %{name}-devel package contains libraries and header files for
 developing applications that use %{pkg_name}.
 
+%if 0%{?skip_qt} == 0
 %package        qt
 Summary:        Qt support for %{pkg_name}
 Requires:       %{name}%{?_isa} = %{version}-%{release}
 
 %description    qt
 The %{name}-qt package contains Qt bindings for %{pkg_name}.
+%endif
 
 %package        glib
 Summary:        GLib support for %{pkg_name}
@@ -168,6 +187,7 @@ Requires:       %{name}%{?_isa} = %{version}-%{release}
 %description    glib
 The %{name}-qt package contains GLib bindings for %{pkg_name}.
 
+%if 0%{?skip_pyhton} == 0
 %package -n	%{name}-python
 Summary:	Python support for %{pkg_name}
 BuildRequires:	python2-devel
@@ -176,7 +196,9 @@ Requires:	python2
 
 %description -n %{name}-python
 The %{name}-python package contains Python bindings for %{pkg_name}.
+%endif
 
+%if 0%{?skip_perl} == 0
 %package -n	%{name}-perl
 Summary:	Perl support for %{pkg_name}
 Provides:	perl(Thrift) = %{version}-%{release}
@@ -201,8 +223,9 @@ BuildArch:	noarch
 
 %description -n %{name}-perl
 The %{name}-perl package contains Perl bindings for %{pkg_name}.
+%endif
 
-%if %{?want_d}
+%if 0%{?want_d} > 0
 %package -n	%{name}-d
 Summary:	D support for %{pkg_name}
 BuildRequires:	ldc
@@ -211,7 +234,7 @@ BuildRequires:	ldc
 The %{name}-d package contains D bindings for %{pkg_name}.
 %endif
 
-%if 0%{?want_php} != 0
+%if 0%{?want_php} > 0
 %package -n	%{name}-php
 Summary:	PHP support for %{pkg_name}
 Requires:	%{name}%{?_isa} = %{version}-%{release}
@@ -238,29 +261,26 @@ Java bindings for %{pkg_name}.
 %package -n	%{?scl_prefix}lib%{pkg_name}-java
 Summary:	Java support for %{pkg_name}
 
-BuildRequires:	java-devel
-BuildRequires:	%{?scl_java_prefix}javapackages-tools
-BuildRequires:	%{?scl_java_prefix}apache-commons-codec
-BuildRequires:	%{?scl_java_prefix}apache-commons-lang
-BuildRequires:	%{?scl_java_prefix}apache-commons-logging
-BuildRequires:	%{?scl_java_prefix}httpcomponents-client
-BuildRequires:	%{?scl_java_prefix}httpcomponents-core
-BuildRequires:	%{?scl_java_prefix}junit
-BuildRequires:	%{?scl_java_prefix}log4j
-BuildRequires:	%{?scl_java_prefix}slf4j
-# RISK the lower version
-%if 0%{?scl} == 0
-BuildRequires:	tomcat-servlet-3.1-api
-%else
-BuildRequires:	%{?scl_java_prefix}tomcat-servlet-3.0-api
-%endif
+BuildRequires:	%{?scl_prefix_java_common}javapackages-tools
+BuildRequires:	%{?scl_prefix_maven}javapackages-local
+BuildRequires:	%{?scl_prefix_java_common}apache-commons-codec
+BuildRequires:	%{?scl_prefix_java_common}apache-commons-lang
+BuildRequires:	%{?scl_prefix_java_common}apache-commons-logging
+BuildRequires:	%{?scl_prefix_java_common}httpcomponents-client
+BuildRequires:	%{?scl_prefix_java_common}httpcomponents-core
+BuildRequires:	%{?scl_prefix_java_common}junit
+BuildRequires:	%{?scl_prefix_java_common}log4j
+BuildRequires:	%{?scl_prefix_java_common}slf4j
+# use lower version of tomcat-servlet in SCL package (3.1 is not available)
+%{!?scl:BuildRequires:	tomcat-servlet-3.1-api}
+%{?scl:BuildRequires:	%{?scl_prefix_java_common}tomcat-servlet-3.0-api}
 
-Requires:	java-headless >= 1:1.6.0
-Requires:	%{?scl_java_prefix}javapackages-tools
-Requires:	%{?scl_java_prefix}mvn(org.slf4j:slf4j-api)
-Requires:	%{?scl_java_prefix}mvn(commons-lang:commons-lang)
-Requires:	%{?scl_java_prefix}mvn(org.apache.httpcomponents:httpclient)
-Requires:	%{?scl_java_prefix}mvn(org.apache.httpcomponents:httpcore)
+Requires:	%{?scl_prefix_java_common}javapackages-tools
+Requires:	%{?scl_prefix_maven}javapackages-local
+Requires:	%{?scl_prefix_java_common}slf4j
+Requires:	%{?scl_prefix_java_common}apache-commons-lang
+Requires:	%{?scl_prefix_java_common}httpcomponents-client
+Requires:	%{?scl_prefix_java_common}httpcomponents-core
 BuildArch:	noarch
 
 %description -n %{?scl_prefix}lib%{pkg_name}-java
@@ -290,22 +310,23 @@ BuildRequires:	erlang-rebar
 The %{name}-erlang package contains Erlang bindings for %{pkg_name}.
 %endif
 
-%package -n fb303
+%package -n %{?scl_prefix}fb303
 Summary:	Basic interface for Thrift services
 Requires:	%{name}%{?_isa} = %{version}-%{release}
 
-%description -n fb303
+%description -n %{?scl_prefix}fb303
 fb303 is the shared root of all Thrift services; it provides a
 standard interface to monitoring, dynamic options and configuration,
 uptime reports, activity, etc.
 
-%package -n fb303-devel
+%package -n %{?scl_prefix}fb303-devel
 Summary:	Development files for fb303
 Requires:	fb303%{?_isa} = %{version}-%{release}
 
-%description -n fb303-devel
+%description -n %{?scl_prefix}fb303-devel
 The fb303-devel package contains header files for fb303
 
+%if 0%{?skip_pyhton} == 0
 %package -n python-fb303
 Summary:	Python bindings for fb303
 Requires:	fb303%{?_isa} = %{version}-%{release}
@@ -313,28 +334,44 @@ BuildRequires:	python2-devel
 
 %description -n python-fb303
 The python-fb303 package contains Python bindings for fb303.
+%endif
 
-%package -n fb303-java
+%package -n %{?scl_prefix}fb303-java
 Summary:	Java bindings for fb303
-Requires:	java >= 1:1.6.0
-Requires:	javapackages-tools
-Requires:	mvn(org.slf4j:slf4j-api)
-Requires:	mvn(commons-lang:commons-lang)
-Requires:	mvn(org.apache.httpcomponents:httpclient)
-Requires:	mvn(org.apache.httpcomponents:httpcore)
+Requires:	%{?scl_prefix_java_common}javapackages-tools
+Requires:	%{?scl_prefix_maven}javapackages-local
+Requires:	%{?scl_prefix_java_common}slf4j
+Requires:	%{?scl_prefix_java_common}apache-commons-lang
+Requires:	%{?scl_prefix_java_common}httpcomponents-client
+Requires:	%{?scl_prefix_java_common}httpcomponents-core
 BuildArch:	noarch
 
-%description -n fb303-java
+%description -n %{?scl_prefix}fb303-java
 The fb303-java package contains Java bindings for fb303.
 
 %global _default_patch_fuzz 2
+
 %prep
 %setup -q -n %{pkg_name}-%{version}
 %patch0 -p1
 %patch1 -p1
 %patch2 -p1
 %patch3 -p1
-%patch4 -p1
+
+%{?scl:scl enable %{scl_maven} %{scl} - << "EOF"}
+# add java build dependencies to the classpath
+mkdir lib/java/build
+mkdir lib/java/build/lib
+build-jar-repository lib/java/build/lib commons-codec commons-lang commons-logging httpcomponents-client httpcomponents-core log4j slf4j-api
+%{!?scl:build-jar-repository lib/java/build/lib tomcat-servlet-3.1-api}
+# use lower version of tomcat-servlet in SCL package (3.1 is not available)
+%{?scl:build-jar-repository lib/java/build/lib tomcat-servlet-3.0-api}
+# split artifacts into subpackages
+%mvn_file org.apache.%{pkg_name}:lib%{pkg_name} lib%{pkg_name}
+%mvn_file org.apache.%{pkg_name}:libfb303 libfb303
+%mvn_package ":lib%{pkg_name}" %{?scl_prefix}lib%{pkg_name}-java
+%mvn_package ":libfb303" %{?scl_prefix}fb303-java
+%{?scl:EOF}
 
 %{?!el5:sed -i -e 's/^AC_PROG_LIBTOOL/LT_INIT/g' configure.ac}
 
@@ -355,12 +392,14 @@ echo 'EXTRA_libthriftz_la_DEPENDENCIES = libthrift.la' >> lib/cpp/Makefile.am
 sed -i 's|libfb303_so_LDFLAGS = $(SHARED_LDFLAGS)|libfb303_so_LDFLAGS = $(SHARED_LDFLAGS) -lthrift -L../../../lib/cpp/.libs -Wl,--as-needed|g' contrib/fb303/cpp/Makefile.am
 
 %build
-%{?scl_enable}
-export PY_PREFIX=%{%{?scl:_root}_prefix}
-export PERL_PREFIX=%{%{?scl:_root}_prefix}
+%{!?scl:export PY_PREFIX=%{_prefix}
+export PERL_PREFIX=%{_prefix}
+export RUBY_PREFIX=%{_prefix}}
+%{?scl:export PY_PREFIX=%{_root_prefix}
+export PERL_PREFIX=%{_root_prefix}
+export RUBY_PREFIX=%{_root_prefix}}
 export PHP_PREFIX=%{php_extdir}
 export JAVA_PREFIX=%{_javadir}
-export RUBY_PREFIX=%{%{?scl:_root}_prefix}
 export GLIB_LIBS=$(pkg-config --libs glib-2.0)
 export GLIB_CFLAGS=$(pkg-config --cflags glib-2.0)
 export GOBJECT_LIBS=$(pkg-config --libs gobject-2.0)
@@ -383,23 +422,23 @@ sed -i 's|$(thrift_home)/bin/thrift|../../../compiler/cpp/thrift|g' \
  contrib/fb303/cpp/Makefile.am \
  contrib/fb303/py/Makefile.am
 
-sed -i 's|$(prefix)/lib$|%{%{?scl:_root}_libdir}|g' contrib/fb303/cpp/Makefile.am
+sed -i 's|$(prefix)/lib$|%{_libdir}|g' contrib/fb303/cpp/Makefile.am
 
 sed -i 's|$(thrift_home)/include/thrift|../../../lib/cpp/src|g' \
  contrib/fb303/cpp/Makefile.am
 
+%{?scl:scl enable %{scl_maven} %{scl} - << "EOF"}
 # Create a straightforward makefile for Java fb303
 echo "all:
 	ant
 install: build/libfb303.jar
-	mkdir -p %{buildroot}%{_javadir}
-	/usr/bin/install -c -m 644 build/libfb303.jar %{buildroot}%{_javadir}
+	pwd
 " > contrib/fb303/java/Makefile
 
 sh ./bootstrap.sh
 
 # use unversioned doc dirs where appropriate (via _pkgdocdir macro)
-%configure --disable-dependency-tracking --disable-static --without-libevent --with-boost=/usr %{ruby_configure} %{erlang_configure} %{golang_configure} %{php_configure} --docdir=%{?_pkgdocdir}%{!?_pkgdocdir:%{_docdir}/%{pkg_name}-%{version}}
+%configure --disable-dependency-tracking --disable-static --without-libevent --with-boost=/usr %{ruby_configure} %{erlang_configure} %{golang_configure} %{php_configure} %{python_configure} --docdir=%{?_pkgdocdir}%{!?_pkgdocdir:%{_docdir}/%{pkg_name}-%{version}}
 
 # eliminate unused direct shlib dependencies
 sed -i -e 's/ -shared / -Wl,--as-needed\0/g' libtool
@@ -411,54 +450,48 @@ make %{?_smp_mflags}
   cd contrib/fb303
   chmod 755 bootstrap.sh
   sh bootstrap.sh
-  %configure --disable-static --with-java --without-php --libdir=%{%{?scl:_root}_libdir}
+  %configure --disable-static --with-java --without-php %{python_configure} --libdir=%{_libdir}
   make %{?_smp_mflags}
   (
       cd java
       ant dist
   )
 )
-%{?scl_disable}
+%mvn_artifact org.apache.%{pkg_name}:lib%{pkg_name}:%{version} lib/java/build/lib%{pkg_name}.jar
+%mvn_artifact org.apache.%{pkg_name}:libfb303:%{version} contrib/fb303/java/build/libfb303.jar
+%{?scl:EOF}
 
 %install
-%{?scl_enable}
+%{?scl:scl enable %{scl_maven} %{scl} - << "EOF"}
 %make_install
 find %{buildroot} -name '*.la' -exec rm -f {} ';'
 find %{buildroot} -name fastbinary.so | xargs -r chmod 755
 find %{buildroot} -name \*.erl -or -name \*.hrl -or -name \*.app | xargs -r chmod 644
 
 # install man page
-mkdir -p %{buildroot}%{%{?scl:_root}_mandir}/man1
-cp %{SOURCE3} %{buildroot}%{%{?scl:_root}_mandir}/man1/thrift.1
-gzip -9v %{buildroot}%{%{?scl:_root}_mandir}/man1/thrift.1
-
-# Remove javadocs jar
-find %{buildroot}/%{_javadir} -name lib%{pkg_name}-javadoc.jar -exec rm -f '{}' \;
-
-# Add POM file and depmap
-mkdir -p %{buildroot}%{_mavenpomdir}
-
-install -pm 644 %{SOURCE1} %{buildroot}%{_mavenpomdir}/JPP-libthrift.pom
-
-%add_maven_depmap JPP-libthrift.pom libthrift.jar
+mkdir -p %{buildroot}%{_mandir}/man1
+cp %{SOURCE3} %{buildroot}%{_mandir}/man1/thrift.1
+gzip -9v %{buildroot}%{_mandir}/man1/thrift.1
 
 # Remove bundled jar files
 find %{buildroot} -name \*.jar -a \! -name \*thrift\* -exec rm -f '{}' \;
 
 # Move perl files into appropriate places
+%if 0%{?skip_perl} == 0
 find %{buildroot} -name \*.pod -exec rm -f '{}' \;
 find %{buildroot} -name .packlist -exec rm -f '{}' \;
 ls %{buildroot}/usr
 ls %{buildroot}/usr/lib64
-find %{buildroot}/usr/lib/perl5 -type d -empty -delete
+# DONE
+#find %{buildroot}/usr/lib/perl5 -type d -empty -delete
 mkdir -p %{buildroot}/%{perl_vendorlib}/
-mv %{buildroot}/usr/lib/perl5/* %{buildroot}/%{perl_vendorlib}
+#mv %{buildroot}/usr/lib/perl5/* %{buildroot}/%{perl_vendorlib}
+%endif
 
-%if 0%{?want_php} != 0
-
+%if 0%{?want_php} > 0
 # Move arch-independent php files into the appropriate place
-mkdir -p %{buildroot}/%{%{?scl:_root}_datadir}/php/
-mv %{buildroot}/%{php_extdir}/Thrift %{buildroot}/%{%{?scl:_root}_datadir}/php/
+mkdir -p %{buildroot}/%{_datadir}/php/
+mv %{buildroot}/%{php_extdir}/Thrift %{buildroot}/%{_datadir}/php/
 %endif # want_php
 
 # Fix permissions on Thread.h
@@ -468,104 +501,107 @@ find %{buildroot} -name Thread.h -exec chmod a-x '{}' \;
 (
   cd contrib/fb303
   make DESTDIR=%{buildroot} install
-  (
-    cd java
-    ant -Dinstall.path=%{buildroot}%{_javadir} -Dinstall.javadoc.path=%{buildroot}%{_javadocdir}/fb303 install
-  )
 )
 
-# install maven pom and depmaps for fb303
-install -pm 644 %{SOURCE4} %{buildroot}%{_mavenpomdir}/JPP-libfb303.pom
-%add_maven_depmap JPP-libfb303.pom libfb303.jar -f "fb303"
+%mvn_install
+%{?scl:EOF}
 
 # Ensure all python scripts are executable
 find %{buildroot} -name \*.py -exec grep -q /usr/bin/env {} \; -print | xargs -r chmod 755
-%{?scl_disable}
-
 
 %post -p /sbin/ldconfig
 
 %postun -p /sbin/ldconfig
 
-
 %files
 %doc LICENSE NOTICE
-%{%{?scl:_root}_bindir}/thrift
-%{%{?scl:_root}_libdir}/libthrift-%{version}.so
-%{%{?scl:_root}_libdir}/libthriftz-%{version}.so
-%{%{?scl:_root}_mandir}/man1/thrift.1.gz
+%{_bindir}/thrift
+%{_libdir}/libthrift-%{version}.so
+%{_libdir}/libthriftz-%{version}.so
+%{_mandir}/man1/thrift.1.gz
 
 %files glib
-%{%{?scl:_root}_libdir}/libthrift_c_glib.so
-%{%{?scl:_root}_libdir}/libthrift_c_glib.so.*
+%{_libdir}/libthrift_c_glib.so
+%{_libdir}/libthrift_c_glib.so.*
 
+%if 0%{?skip_qt} == 0
 %files qt
-%{%{?scl:_root}_libdir}/libthriftqt.so
-%{%{?scl:_root}_libdir}/libthriftqt-%{version}.so
+%{_libdir}/libthriftqt.so
+%{_libdir}/libthriftqt-%{version}.so
+%endif
 
 %files devel
-%{%{?scl:_root}_includedir}/thrift
-%exclude %{%{?scl:_root}_includedir}/thrift/fb303
-%{%{?scl:_root}_libdir}/*.so
-%exclude %{%{?scl:_root}_libdir}/lib*-%{version}.so
-%exclude %{%{?scl:_root}_libdir}/libfb303.so
-%{%{?scl:_root}_libdir}/pkgconfig/thrift-z.pc
-%{%{?scl:_root}_libdir}/pkgconfig/thrift-qt.pc
-%{%{?scl:_root}_libdir}/pkgconfig/thrift.pc
-%{%{?scl:_root}_libdir}/pkgconfig/thrift_c_glib.pc
+%{_includedir}/thrift
+%exclude %{_includedir}/thrift/fb303
+%{_libdir}/*.so
+%exclude %{_libdir}/lib*-%{version}.so
+%exclude %{_libdir}/libfb303.so
+%{_libdir}/pkgconfig/thrift-z.pc
+%{_libdir}/pkgconfig/thrift-qt.pc
+%{_libdir}/pkgconfig/thrift.pc
+%{_libdir}/pkgconfig/thrift_c_glib.pc
 %doc LICENSE NOTICE
 
+%if 0%{?skip_perl} == 0
 %files -n %{name}-perl
 %{perl_vendorlib}/Thrift
 %{perl_vendorlib}/Thrift.pm
 %doc LICENSE NOTICE
+%endif
 
-%if 0%{?want_php} != 0
+%if 0%{?want_php} > 0
 %files -n %{name}-php
 %config(noreplace) /etc/php.d/thrift_protocol.ini
-%{%{?scl:_root}_datadir}/php/Thrift/
+%{_datadir}/php/Thrift/
 %{php_extdir}/thrift_protocol.so
 %doc LICENSE NOTICE
 %endif
 
 %if %{?want_erlang} > 0
 %files -n %{name}-erlang
-%{%{?scl:_root}_libdir}/erlang/lib/%{pkg_name}-%{version}/
+%{_libdir}/erlang/lib/%{pkg_name}-%{version}/
 %doc LICENSE NOTICE
 %endif
 
+%if 0%{?skip_python} == 0
 %files -n %{name}-python
 %{python_sitearch}/%{pkg_name}
 %{python_sitearch}/%{pkg_name}-%{version}-py%{py_version}.egg-info
 %doc LICENSE NOTICE
+%endif
 
 %files -n %{?scl_prefix}lib%{pkg_name}-javadoc
 %{_javadocdir}/%{pkg_name}
 %doc LICENSE NOTICE
 
-%files -n %{?scl_prefix}lib%{pkg_name}-java -f .mfiles
+%files -n %{?scl_prefix}lib%{pkg_name}-java -f .mfiles-%{?scl_prefix}lib%{pkg_name}-java
 %doc LICENSE NOTICE
 
-%files -n fb303
+%files -n %{?scl_prefix}fb303
 %{_datarootdir}/fb303
 %doc LICENSE NOTICE
 
-%files -n fb303-devel
-%{%{?scl:_root}_libdir}/libfb303.so
-%{%{?scl:_root}_includedir}/thrift/fb303
+%files -n %{?scl_prefix}fb303-devel
+%{_libdir}/libfb303.so
+%{_includedir}/thrift/fb303
 %doc LICENSE NOTICE
 
+%if 0%{?skip_python} == 0
 %files -n python-fb303
 %{python_sitelib}/fb303
 %{python_sitelib}/fb303_scripts
 %{python_sitelib}/%{pkg_name}_fb303-%{fb303_version}-py%{py_version}.egg-info
 %doc LICENSE NOTICE
+%endif
 
-%files -n fb303-java -f .mfiles-fb303
+%files -n %{?scl_prefix}fb303-java -f .mfiles-%{?scl_prefix}fb303-java
 %doc LICENSE NOTICE
 
 %changelog
-* Tue Aug 02 2016 Tomas Repik <trepik@redhat.com> - 0.9.1-17.6
+* Wed Nov 02 2016 Tomas Repik <trepik@redhat.com> - 0.9.1-17.7
+- build and install only java subpackages for SCL package
+
+* Thu Oct 06 2016 Tomas Repik <trepik@redhat.com> - 0.9.1-17.6
 - scl conversion
 
 * Tue Jul 19 2016 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 0.9.1-17.5
